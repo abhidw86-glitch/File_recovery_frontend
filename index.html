@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>File Recovery Finder</title>
+  <style>
+    :root { font-family: Arial, sans-serif; }
+    body { margin: 0; background: #f5f7fb; color: #1d2433; }
+    .app { max-width: 960px; margin: 0 auto; padding: 20px; }
+    h1 { margin-top: 0; }
+    .card { background: #fff; border: 1px solid #dde3ee; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    input, button { padding: 10px; border-radius: 8px; border: 1px solid #c7d0e0; }
+    input { flex: 1; min-width: 240px; }
+    button { cursor: pointer; background: #2d6bf3; border-color: #2d6bf3; color: #fff; }
+    button.secondary { background: #fff; color: #2d6bf3; }
+    ul { padding-left: 20px; }
+    li { margin-bottom: 8px; }
+    .muted { color: #596378; font-size: 0.9rem; }
+    .pill { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 0.75rem; margin-left: 8px; }
+    .pill.recent { background: #d9fbe4; color: #1a7f37; }
+    .pill.old { background: #ffe7e6; color: #aa2e25; }
+    .cart-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>File Search & Recovery</h1>
+
+    <section class="card">
+      <h2>Search by file name or folder path</h2>
+      <div class="row">
+        <input id="queryInput" type="text" placeholder="Try: report, backups/oct, finance/2026" />
+        <button id="searchButton" type="button">Search</button>
+      </div>
+      <p class="muted">Files added in the last 15 days can be proceeded immediately. Older files require confirmation.</p>
+    </section>
+
+    <section class="card">
+      <h2>Folder structure</h2>
+      <ul id="folderTree"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Search results</h2>
+      <ul id="results"></ul>
+      <p id="emptyState" class="muted">No search performed yet.</p>
+    </section>
+
+    <section class="card">
+      <h2>Cart (multiple files)</h2>
+      <ul id="cartList" class="cart-list"></ul>
+      <p id="cartEmpty" class="muted">No files in cart.</p>
+    </section>
+  </main>
+
+  <script>
+    const files = [
+      { id: 1, name: "report_q3.pdf", path: "finance/2026/oct/report_q3.pdf", addedOn: "2026-10-01" },
+      { id: 2, name: "invoice_204.csv", path: "finance/2026/oct/invoice_204.csv", addedOn: "2026-09-12" },
+      { id: 3, name: "backup.zip", path: "backups/oct/backup.zip", addedOn: "2026-10-03" },
+      { id: 4, name: "client_list.xlsx", path: "crm/exports/client_list.xlsx", addedOn: "2026-09-16" }
+    ];
+
+    const cart = new Map();
+    const maxAgeDays = 15;
+    const queryInput = document.getElementById("queryInput");
+    const searchButton = document.getElementById("searchButton");
+    const resultsEl = document.getElementById("results");
+    const emptyStateEl = document.getElementById("emptyState");
+    const cartListEl = document.getElementById("cartList");
+    const cartEmptyEl = document.getElementById("cartEmpty");
+    const folderTreeEl = document.getElementById("folderTree");
+
+    function daysSince(dateString) {
+      const fileDate = new Date(dateString + "T00:00:00");
+      const now = new Date();
+      return Math.floor((now - fileDate) / (1000 * 60 * 60 * 24));
+    }
+
+    function isRecent(file) {
+      return daysSince(file.addedOn) <= maxAgeDays;
+    }
+
+    function renderFolderTree() {
+      folderTreeEl.innerHTML = "";
+      const paths = files.map((file) => file.path);
+      paths.forEach((path) => {
+        const li = document.createElement("li");
+        li.textContent = path;
+        folderTreeEl.appendChild(li);
+      });
+    }
+
+    function renderCart() {
+      const cartItems = Array.from(cart.values());
+      cartListEl.innerHTML = "";
+      cartEmptyEl.style.display = cartItems.length ? "none" : "block";
+
+      cartItems.forEach((file) => {
+        const li = document.createElement("li");
+        const label = document.createElement("span");
+        label.textContent = file.path;
+        const remove = document.createElement("button");
+        remove.textContent = "Remove";
+        remove.className = "secondary";
+        remove.type = "button";
+        remove.addEventListener("click", () => {
+          cart.delete(file.id);
+          renderCart();
+        });
+        li.append(label, remove);
+        cartListEl.appendChild(li);
+      });
+    }
+
+    function addToCart(file) {
+      cart.set(file.id, file);
+      renderCart();
+    }
+
+    function proceedFile(file) {
+      if (!isRecent(file)) {
+        const confirmed = window.confirm("This file was added more than 15 days ago. Proceed anyway?");
+        if (!confirmed) {
+          return;
+        }
+      }
+      addToCart(file);
+      window.alert("Added to cart: " + file.name);
+    }
+
+    function renderResults(foundFiles) {
+      resultsEl.innerHTML = "";
+      emptyStateEl.style.display = foundFiles.length ? "none" : "block";
+      emptyStateEl.textContent = foundFiles.length ? "" : "No files found.";
+
+      foundFiles.forEach((file) => {
+        const li = document.createElement("li");
+        const ageClass = isRecent(file) ? "recent" : "old";
+        const ageLabel = isRecent(file) ? "within 15 days" : "older than 15 days";
+
+        const text = document.createElement("span");
+        text.textContent = file.path;
+        const pill = document.createElement("span");
+        pill.className = `pill ${ageClass}`;
+        pill.textContent = ageLabel;
+
+        const addButton = document.createElement("button");
+        addButton.type = "button";
+        addButton.textContent = "Proceed + Add to cart";
+        addButton.addEventListener("click", () => proceedFile(file));
+
+        li.append(text, pill, addButton);
+        resultsEl.appendChild(li);
+      });
+    }
+
+    function searchFiles() {
+      const query = queryInput.value.trim().toLowerCase();
+      if (!query) {
+        emptyStateEl.style.display = "block";
+        emptyStateEl.textContent = "Please enter a file name or folder path.";
+        resultsEl.innerHTML = "";
+        return;
+      }
+
+      const foundFiles = files.filter((file) => {
+        const searchTarget = (file.name + " " + file.path).toLowerCase();
+        return searchTarget.includes(query);
+      });
+
+      if (foundFiles.length) {
+        window.alert(`File found: ${foundFiles.length} match(es)`);
+      }
+      renderResults(foundFiles);
+    }
+
+    searchButton.addEventListener("click", searchFiles);
+    queryInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        searchFiles();
+      }
+    });
+
+    renderFolderTree();
+    renderCart();
+  </script>
+</body>
+</html>
